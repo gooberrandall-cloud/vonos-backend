@@ -10,11 +10,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import type { LoginResponse, LoginSuccessResponse } from '@vonos/types';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/auth.guards';
 import { REFRESH_COOKIE_NAME } from './auth.constants';
-import { AuthService } from './auth.service';
+import { AuthService, type SessionResult } from './auth.service';
 
 interface LoginDto {
   email: string;
@@ -41,9 +42,7 @@ interface TotpCodeDto {
   code: string;
 }
 
-function withoutRefreshToken<T extends { refreshTokenRaw: string }>(
-  result: T,
-): Omit<T, 'refreshTokenRaw'> {
+function stripRefreshToken(result: SessionResult): LoginSuccessResponse {
   const { refreshTokenRaw, ...response } = result;
   void refreshTokenRaw;
   return response;
@@ -57,33 +56,33 @@ export class AuthController {
   async login(
     @Body() body: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<LoginResponse> {
     const result = await this.authService.login(body);
-    if ('refreshTokenRaw' in result && result.refreshTokenRaw) {
-      this.setRefreshCookie(res, result.refreshTokenRaw);
-      return withoutRefreshToken(result);
+    if ('requiresTwoFactor' in result) {
+      return result;
     }
-    return result;
+    this.setRefreshCookie(res, result.refreshTokenRaw);
+    return stripRefreshToken(result);
   }
 
   @Post('verify-2fa')
   async verifyTwoFactor(
     @Body() body: VerifyTwoFactorDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<LoginSuccessResponse> {
     const result = await this.authService.verifyTwoFactor(
       body.challengeToken,
       body.code,
     );
     this.setRefreshCookie(res, result.refreshTokenRaw);
-    return withoutRefreshToken(result);
+    return stripRefreshToken(result);
   }
 
   @Post('refresh')
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<LoginSuccessResponse> {
     const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME] as
       | string
       | undefined;
@@ -93,7 +92,7 @@ export class AuthController {
 
     const result = await this.authService.refreshSession(refreshToken);
     this.setRefreshCookie(res, result.refreshTokenRaw);
-    return withoutRefreshToken(result);
+    return stripRefreshToken(result);
   }
 
   @Post('logout')
@@ -131,14 +130,14 @@ export class AuthController {
   async acceptInvite(
     @Body() body: AcceptInviteDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<LoginSuccessResponse> {
     const result = await this.authService.acceptInvite(
       body.token,
       body.password,
       body.name,
     );
     this.setRefreshCookie(res, result.refreshTokenRaw);
-    return withoutRefreshToken(result);
+    return stripRefreshToken(result);
   }
 
   @UseGuards(JwtAuthGuard)

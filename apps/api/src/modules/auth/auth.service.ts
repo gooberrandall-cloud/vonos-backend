@@ -9,8 +9,8 @@ import type { AuthTokenType, Role, User } from '@prisma/client';
 import type {
   ForgotPasswordResponse,
   InviteDetails,
-  LoginResponse,
   LoginSuccessResponse,
+  TwoFactorChallengeResponse,
   TwoFactorSetupResponse,
 } from '@vonos/types';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -54,7 +54,7 @@ interface LoginDto {
   password: string;
 }
 
-interface SessionResult extends LoginSuccessResponse {
+export interface SessionResult extends LoginSuccessResponse {
   refreshTokenRaw: string;
 }
 
@@ -68,7 +68,7 @@ export class AuthService {
 
   async login(
     body: LoginDto,
-  ): Promise<LoginResponse & { refreshTokenRaw?: string }> {
+  ): Promise<TwoFactorChallengeResponse | SessionResult> {
     const user = await this.findActiveUserByEmail(body.email);
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
