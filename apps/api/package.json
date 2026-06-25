@@ -4,6 +4,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "prebuild": "npm run build --workspace=@vonos/types",
     "build": "prisma generate && nest build",
     "postinstall": "prisma generate",
     "dev": "nest start --watch",

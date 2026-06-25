@@ -3,7 +3,7 @@ builder = "RAILPACK"
 buildCommand = "npm run build --workspace=@vonos/types && npm run build --workspace=api"
 
 [deploy]
-startCommand = "npx prisma migrate deploy && npm run start:prod"
+startCommand = "npm run start:prod --workspace=api"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

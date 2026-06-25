@@ -156,7 +156,6 @@ export async function buildAppointmentReports(
         metricKey: 'noShowRate',
         color: '#9333ea',
         value: noShowRate,
-        deltaPercent: `${noShowRate}%`,
         ...computeDelta(noShowRate, priorRate),
       },
       {
