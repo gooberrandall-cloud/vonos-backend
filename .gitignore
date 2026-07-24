@@ -1,0 +1,47 @@
+# Dependencies & build
+node_modules
+.next
+dist
+.turbo
+.venv
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+id_rsa
+id_rsa.pub
+
+# Logs & OS
+*.log
+.DS_Store
+coverage
+
+# Prisma local DB
+apps/api/prisma/*.db
+
+# SQL dumps (large; keep out of git)
+*.sql
+!apps/api/prisma/migrations/**/*.sql
+
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+
+# Legacy WordPress exports (not app source)
+audit.vonosautos.com/
+cafe.vonosautos.com/
+hq6.vonosautomarket.com/
+visp.vonosautomarket.com/
+vsp.vonosautomarket.com/
+
+# Vercel local link state
+.vercel
+
+# Split-repo publish output
+.publish/
+
+# Fonts bundle (optional asset)
+helvetica-neue-5/

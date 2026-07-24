@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Customer" ADD COLUMN IF NOT EXISTS "taxNumber" TEXT;
+ALTER TABLE "Supplier" ADD COLUMN IF NOT EXISTS "taxNumber" TEXT;

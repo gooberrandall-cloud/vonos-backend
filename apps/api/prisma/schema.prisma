@@ -1,0 +1,1245 @@
+generator client {
+  provider        = "prisma-client-js"
+  binaryTargets   = ["native", "rhel-openssl-3.0.x"]
+  previewFeatures = ["metrics"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  super_admin
+  admin
+  manager
+  staff
+  viewer
+}
+
+enum UserStatus {
+  invited
+  active
+  suspended
+}
+
+enum AuthTokenType {
+  invite
+  password_reset
+  refresh
+}
+
+enum Archetype {
+  stock
+  transaction
+  job
+  appointment
+}
+
+enum StockStatus {
+  in_stock
+  low_stock
+  out_of_stock
+}
+
+enum LedgerEntryType {
+  revenue
+  cost
+  expense
+}
+
+enum AccountTxnType {
+  debit
+  credit
+}
+
+enum MovementSource {
+  standard
+  purchase_return
+}
+
+enum MovementType {
+  inbound
+  outbound
+  transfer
+}
+
+enum MovementStatus {
+  Ordered
+  Pending
+  Approved
+  Received
+  Shipped
+  Delivered
+}
+
+enum PaymentStatus {
+  paid
+  partial
+  due
+  overdue
+}
+
+enum PurchasePaymentStatus {
+  paid
+  due
+  partial
+  overdue
+}
+
+enum SaleStatus {
+  completed
+  refunded
+  partially_refunded
+  written_off
+  draft
+  quotation
+}
+
+enum InvoiceKind {
+  sale
+  purchase
+  expense
+  payroll
+  payroll_group
+  job_invoice
+  job_quote
+}
+
+model Tenant {
+  id        String    @id @default(cuid())
+  code      String    @unique
+  name      String
+  archetype Archetype
+  config    Json
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users              User[]
+  items              Item[]
+  itemLocationStock  ItemLocationStock[]
+  jobs               Job[]
+  ledgerEntries      LedgerEntry[]
+  tenantDailyFinance TenantDailyFinance[]
+  tenantEntitySnapshot TenantEntitySnapshot?
+  suppliers          Supplier[]
+  stockMovements     StockMovement[]
+  customers          Customer[]
+  sales              Sale[]
+  appointments       Appointment[]
+  vehicles           Vehicle[]
+  requisitions       Requisition[]
+  salonServices      SalonService[]
+  cafeTables         CafeTable[]
+  migrationLegacyIds MigrationLegacyId[]
+  auditLogs          AuditLog[]
+  paymentAccounts    PaymentAccount[]
+  accountTransactions AccountTransaction[]
+  payments           Payment[]
+  productCategories  ProductCategory[]
+  brands             Brand[]
+  productUnits       ProductUnit[]
+  warranties         Warranty[]
+  sellingPriceGroups  SellingPriceGroup[]
+  expenses            Expense[]
+  expenseCategories   ExpenseCategory[]
+  customerGroups      CustomerGroup[]
+  payrolls            Payroll[]
+  payrollGroups       PayrollGroup[]
+  payComponents       PayComponent[]
+  designations        Designation[]
+  employees           Employee[]
+  invoiceLayouts      InvoiceLayout[]
+  invoiceSchemes      InvoiceScheme[]
+  receiptPrinters     ReceiptPrinter[]
+  invoices            Invoice[]
+  discounts           Discount[]
+  variationTemplates  VariationTemplate[]
+}
+
+model Appointment {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  stylistName  String
+  serviceName  String
+  servicePrice Decimal   @default(0)
+  currency     String    @default("NGN")
+  startTime    DateTime
+  endTime      DateTime
+  status       String
+  notes        String?
+  locationCode String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([tenantId, startTime])
+  @@index([tenantId, status])
+  @@index([tenantId, status, startTime])
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  role         Role
+  status       UserStatus @default(invited)
+  tenantId     String?
+  tenant       Tenant?    @relation(fields: [tenantId], references: [id])
+  tokenVersion Int        @default(0)
+  totpSecret   String?
+  totpEnabled  Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  lastLoginAt  DateTime?
+  deletedAt    DateTime?
+  authTokens   AuthToken[]
+
+  itemsCreated         Item[]          @relation("ItemCreatedBy")
+  stockMovementsCreated StockMovement[] @relation("StockMovementCreatedBy")
+  suppliersCreated     Supplier[]      @relation("SupplierCreatedBy")
+  suppliersAssigned    Supplier[]      @relation("SupplierAssignedTo")
+  jobsCreated          Job[]           @relation("JobCreatedBy")
+  customersCreated     Customer[]      @relation("CustomerCreatedBy")
+  customersAssigned    Customer[]      @relation("CustomerAssignedTo")
+  salesCreated         Sale[]          @relation("SaleCreatedBy")
+  salesAsCleaner       Sale[]          @relation("SaleCleaner")
+  employeesLinked      Employee[]      @relation("EmployeeUser")
+  auditLogsActed       AuditLog[]      @relation("AuditLogActor")
+
+  @@index([tenantId])
+  @@index([tenantId, role])
+  @@index([tenantId, status])
+  @@index([tenantId, name])
+}
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  metadata  Json?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+  @@index([expiresAt])
+}
+
+model Item {
+  id                 String      @id @default(cuid())
+  tenantId           String
+  tenant             Tenant      @relation(fields: [tenantId], references: [id])
+  sku                String
+  name               String
+  category           String?
+  subCategory        String?
+  description        String?
+  barcodeType        String?
+  unit               String?
+  weight             String?
+  /// Free-text car model fitment (e.g. "Camry 2018") — used for part suggestions.
+  carModel           String?
+  enableImei         Boolean     @default(false)
+  preparationMinutes Int?
+  quantity           Int         @default(0)
+  binLocation        String?
+  locationCode       String?
+  reorderPoint       Int?
+  costPrice          Decimal
+  sellPrice          Decimal?
+  currency           String      @default("NGN")
+  status             StockStatus @default(in_stock)
+  availableForRetail Boolean     @default(false)
+  createdByUserId    String?
+  createdByUser      User?       @relation("ItemCreatedBy", fields: [createdByUserId], references: [id])
+  createdByName      String?
+  brandId            String?
+  brand              Brand?      @relation(fields: [brandId], references: [id])
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  deletedAt          DateTime?
+
+  locationStock      ItemLocationStock[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, availableForRetail])
+  @@index([tenantId, brandId])
+  @@index([tenantId, carModel])
+  @@index([tenantId, category])
+  @@index([tenantId, deletedAt])
+}
+
+/// Per-location quantity for an item (mirrors Ultimate POS variation_location_details).
+/// Item.quantity is the derived sum across these rows.
+model ItemLocationStock {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  itemId       String
+  item         Item     @relation(fields: [itemId], references: [id])
+  locationCode String
+  binLocation  String   @default("")
+  quantity     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([itemId, locationCode, binLocation])
+  @@index([tenantId])
+  @@index([itemId])
+  @@index([tenantId, locationCode])
+}
+
+model StockMovement {
+  id        String         @id @default(cuid())
+  tenantId  String
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  type      MovementType
+  reference String
+  status    MovementStatus @default(Ordered)
+  lines          Json
+  /// Denormalized from lines[] — list pages must not expand jsonb.
+  itemCount      Int            @default(0)
+  /// Denormalized Σ(qty × unitCost) from lines[].
+  grandTotal     Decimal        @default(0)
+  notes          String?
+  locationCode   String?
+  supplierId     String?
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  source         MovementSource @default(standard)
+  paymentStatus  PurchasePaymentStatus?
+  paymentMethod  String?
+  date            DateTime
+  createdByUserId String?
+  createdByUser   User?          @relation("StockMovementCreatedBy", fields: [createdByUserId], references: [id])
+  createdByName   String?
+  createdAt       DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  deletedAt DateTime?
+
+  invoice Invoice?
+
+  @@index([tenantId])
+  @@index([tenantId, type])
+  @@index([tenantId, date])
+  @@index([tenantId, type, date])
+  @@index([tenantId, type, status])
+  @@index([tenantId, type, deletedAt])
+  @@index([tenantId, type, deletedAt, date])
+  @@index([tenantId, source])
+  @@index([tenantId, paymentStatus])
+  @@index([supplierId])
+}
+
+model Supplier {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String
+  contactName String?
+  email       String?
+  phone       String?
+  address     String?
+  locationCode String?
+  notes           String?
+  /** HQ6 contact tax / VAT registration number. */
+  taxNumber       String?
+  /** HQ6 contact active/inactive — independent of purchase-activity rollup. */
+  status          String   @default("active")
+  openingBalance  Decimal  @default(0)
+  totalPurchase       Decimal  @default(0)
+  totalPurchaseDue    Decimal  @default(0)
+  totalPurchasePaid   Decimal  @default(0)
+  totalPurchaseReturn Decimal  @default(0)
+  totalAdvance        Decimal  @default(0)
+  lastPurchaseAt      DateTime?
+  assignedToUserId String?
+  assignedToUser   User?    @relation("SupplierAssignedTo", fields: [assignedToUserId], references: [id])
+  createdByUserId String?
+  createdByUser   User?    @relation("SupplierCreatedBy", fields: [createdByUserId], references: [id])
+  createdByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  stockMovements StockMovement[]
+  invoices       Invoice[]
+
+  @@index([tenantId])
+  @@index([assignedToUserId])
+  @@index([tenantId, totalPurchaseDue])
+  @@index([tenantId, lastPurchaseAt])
+  @@index([tenantId, status])
+}
+
+model Job {
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  reference        String
+  description      String
+  status           String
+  hasQuote         Boolean   @default(false)
+  quoteAmount      Decimal?
+  quoteNotes       String?
+  quoteValidUntil  DateTime?
+  invoiceAmount    Decimal?
+  invoiceNotes     String?
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id])
+  customerName     String?
+  vehicleId        String?
+  locationCode     String?
+  assignedStaffIds String[]
+  dueDate          DateTime?
+  qcChecklist      Json?
+  qcNotes          String?
+  createdByUserId  String?
+  createdByUser    User?     @relation("JobCreatedBy", fields: [createdByUserId], references: [id])
+  createdByName    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  materials    JobMaterial[]
+  labourEntries JobLabour[]
+  invoices     Invoice[]
+  sales        Sale[]
+
+  @@unique([tenantId, reference])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, updatedAt])
+  @@index([tenantId, customerId])
+}
+
+model JobMaterial {
+  id                 String   @id @default(cuid())
+  jobId              String
+  job                Job      @relation(fields: [jobId], references: [id])
+  itemId             String?
+  name               String
+  quantity           Decimal
+  unitCost           Decimal
+  totalCost          Decimal
+  source             String?
+  sourceType         String?
+  sourceDepartment   String?
+  supplierId         String?
+  supplierName       String?
+  purchaseMovementId String?
+  createdAt          DateTime @default(now())
+
+  @@index([jobId])
+}
+
+model JobLabour {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id])
+  staffId   String
+  hours     Decimal
+  rate      Decimal
+  totalCost Decimal
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+}
+
+model LedgerEntry {
+  id               String          @id @default(cuid())
+  tenantId         String
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  type             LedgerEntryType
+  amount           Decimal
+  currency         String          @default("NGN")
+  category         String
+  description      String
+  linkedRecordType String?
+  linkedRecordId   String?
+  /** True when this row is an inter-entity transfer (excluded from VAG group P&L). */
+  isInternalTransfer Boolean @default(false)
+  counterpartyTenantId String?
+  invoiceId        String?
+  invoice          Invoice?        @relation(fields: [invoiceId], references: [id])
+  date             DateTime
+  createdAt        DateTime        @default(now())
+  deletedAt        DateTime?
+
+  @@index([tenantId])
+  @@index([tenantId, date])
+  @@index([tenantId, type])
+  @@index([tenantId, type, date])
+  @@index([tenantId, isInternalTransfer])
+  @@index([invoiceId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name      String
+  email     String?
+  phone           String?
+  customerGroupId String?
+  customerGroup   CustomerGroup? @relation(fields: [customerGroupId], references: [id])
+  assignedToUserId String?
+  assignedToUser   User?    @relation("CustomerAssignedTo", fields: [assignedToUserId], references: [id])
+  openingBalance  Decimal  @default(0)
+  totalSell       Decimal  @default(0)
+  totalSellDue    Decimal  @default(0)
+  totalSellPaid   Decimal  @default(0)
+  totalSellReturn Decimal  @default(0)
+  totalAdvance    Decimal  @default(0)
+  visitCount      Int      @default(0)
+  status          String   @default("active")
+  /** HQ6 contact tax / VAT registration number. */
+  taxNumber       String?
+  createdByUserId String?
+  createdByUser   User?    @relation("CustomerCreatedBy", fields: [createdByUserId], references: [id])
+  createdByName   String?
+  createdAt       DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  sales        Sale[]
+  appointments Appointment[]
+  jobs         Job[]
+  expensesFor  Expense[] @relation("ExpenseForCustomer")
+  expensesContact Expense[] @relation("ExpenseContactCustomer")
+  invoices     Invoice[]
+
+  @@index([tenantId])
+  @@index([customerGroupId])
+  @@index([assignedToUserId])
+  @@index([tenantId, status])
+  @@index([tenantId, totalSellDue])
+  @@index([tenantId, createdAt])
+}
+
+model TenantDailyFinance {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  date      DateTime @db.Date
+  revenue   Decimal  @default(0)
+  costs     Decimal  @default(0)
+  expenses  Decimal  @default(0)
+  net       Decimal  @default(0)
+  currency  String   @default("NGN")
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, date])
+  @@index([tenantId, date])
+}
+
+model TenantEntitySnapshot {
+  tenantId          String   @id
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  archetype         String
+  sku               Int      @default(0)
+  stockValue        Decimal  @default(0)
+  lowStock          Int      @default(0)
+  inboundToday      Int      @default(0)
+  salesTodayRevenue Decimal  @default(0)
+  salesReturns      Int      @default(0)
+  activeJobs        Int      @default(0)
+  pendingQc         Int      @default(0)
+  jobRevenueToday   Decimal  @default(0)
+  apptsToday        Int      @default(0)
+  apptRevenueToday  Decimal  @default(0)
+  retailLowStock    Int      @default(0)
+  pendingInbound    Int      @default(0)
+  refreshedAt       DateTime @updatedAt
+}
+
+model Sale {
+  id            String         @id @default(cuid())
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  reference     String
+  customerId    String?
+  customer      Customer?      @relation(fields: [customerId], references: [id])
+  /** For job-centric tenants (VA), every sale is the commercial record for a job. */
+  jobId         String?
+  job           Job?           @relation(fields: [jobId], references: [id])
+  total         Decimal
+  discountAmount Decimal?
+  taxAmount      Decimal?
+  notes          String?
+  currency      String         @default("NGN")
+  status        SaleStatus     @default(completed)
+  paymentStatus PaymentStatus?
+  locationCode  String?
+  paymentMethod   String?
+  cleanerUserId   String?
+  cleanerUser     User?          @relation("SaleCleaner", fields: [cleanerUserId], references: [id])
+  cleanerName     String?
+  serviceStaffEmployeeId String?
+  serviceStaffEmployee   Employee? @relation("SaleServiceStaff", fields: [serviceStaffEmployeeId], references: [id])
+  shippingStatus  String?
+  shippingAddress String?
+  trackingNumber  String?
+  date            DateTime
+  createdByUserId String?
+  createdByUser   User?          @relation("SaleCreatedBy", fields: [createdByUserId], references: [id])
+  createdByName   String?
+  createdAt       DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+
+  originalSaleId String?
+  originalSale   Sale?  @relation("SaleReturns", fields: [originalSaleId], references: [id])
+  returns        Sale[] @relation("SaleReturns")
+
+  lines SaleLine[]
+  payments Payment[]
+  invoice Invoice?
+
+  @@unique([tenantId, reference])
+  @@unique([tenantId, jobId])
+  @@index([tenantId])
+  @@index([tenantId, date])
+  @@index([tenantId, status, date])
+  @@index([customerId])
+  @@index([jobId])
+  @@index([tenantId, shippingStatus])
+  @@index([tenantId, paymentMethod])
+  @@index([cleanerUserId])
+  @@index([tenantId, serviceStaffEmployeeId])
+  @@index([originalSaleId])
+}
+
+model Discount {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  discountType String
+  amount       Decimal
+  isActive     Boolean   @default(true)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([tenantId])
+}
+
+model VariationTemplate {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  values    String[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([tenantId])
+}
+
+model SaleLine {
+  id             String   @id @default(cuid())
+  saleId         String
+  sale           Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  itemId         String?
+  sku            String
+  name           String
+  quantity       Decimal
+  unitPrice      Decimal
+  lineTotal      Decimal
+  discountAmount Decimal?
+  createdAt      DateTime @default(now())
+
+  @@index([saleId])
+  @@index([itemId])
+}
+
+model MigrationLegacyId {
+  id         String @id @default(cuid())
+  tenantId   String
+  tenant     Tenant @relation(fields: [tenantId], references: [id])
+  entityType String
+  legacyId   Int
+  newId      String
+
+  @@unique([tenantId, entityType, legacyId])
+  @@index([tenantId, entityType])
+}
+
+model Notification {
+  id               String   @id @default(cuid())
+  tenantId         String?
+  userId           String?
+  type             String
+  title            String
+  message          String
+  severity         String
+  linkedRecordType String?
+  linkedRecordId   String?
+  read             Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([userId, read])
+}
+
+model Vehicle {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  plateNumber String
+  vin         String?
+  make        String
+  model       String
+  year        Int?
+  ownerName   String
+  ownerPhone  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([tenantId, plateNumber])
+  @@index([tenantId])
+}
+
+model Requisition {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  reference String
+  status    String    @default("Pending")
+  jobId     String?
+  locationCode String?
+  notes     String?
+  /// Source entity tenant id that fulfills the requisition (Warehouse-first).
+  sourceTenantId String?
+  /// Requested part lines: [{ itemId?, sku, name, quantity }].
+  lines     Json?
+  fulfilledAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([tenantId, reference])
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model SalonService {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  name            String
+  durationMinutes Int       @default(60)
+  price           Decimal
+  currency        String    @default("NGN")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  @@index([tenantId])
+}
+
+model CafeTable {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  label     String
+  status    String    @default("available")
+  capacity  Int       @default(4)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([tenantId, label])
+  @@index([tenantId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  actorUserId String?
+  actorUser   User?    @relation("AuditLogActor", fields: [actorUserId], references: [id])
+  actorName   String?
+  summary     String
+  metadata    Json?
+  occurredAt  DateTime
+  legacyLogId Int?
+  createdAt   DateTime @default(now())
+
+  @@unique([tenantId, legacyLogId])
+  @@index([tenantId, entityType, entityId, occurredAt])
+  @@index([tenantId, occurredAt])
+}
+
+model PaymentAccount {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  name            String
+  accountNumber   String
+  accountType     String?
+  accountSubType  String?
+  accountDetails  String?
+  note            String?
+  isClosed        Boolean   @default(false)
+  currency        String    @default("NGN")
+  createdByUserId String?
+  createdByName   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  transactions AccountTransaction[]
+  payments     Payment[]
+
+  @@index([tenantId])
+  @@index([tenantId, isClosed])
+}
+
+model AccountTransaction {
+  id            String          @id @default(cuid())
+  tenantId      String
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  accountId     String
+  account       PaymentAccount  @relation(fields: [accountId], references: [id])
+  type          AccountTxnType
+  subType       String?
+  amount        Decimal
+  refNo         String?
+  operationDate DateTime
+  note          String?
+  paymentMethod String?
+  paymentDetails String?
+  saleId        String?
+  paymentId     String?
+  invoiceId     String?
+  invoice       Invoice?        @relation(fields: [invoiceId], references: [id])
+  createdByName   String?
+  createdAt     DateTime        @default(now())
+  deletedAt     DateTime?
+
+  @@index([tenantId])
+  @@index([accountId, operationDate])
+  @@index([invoiceId])
+}
+
+model Payment {
+  id            String          @id @default(cuid())
+  tenantId      String
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  amount        Decimal
+  currency      String          @default("NGN")
+  method        String?
+  paymentRefNo  String?
+  paidOn        DateTime?
+  paymentFor    String?
+  accountId     String?
+  account       PaymentAccount? @relation(fields: [accountId], references: [id])
+  saleId        String?
+  sale          Sale?           @relation(fields: [saleId], references: [id])
+  invoiceId     String?
+  invoice       Invoice?        @relation(fields: [invoiceId], references: [id])
+  isReturn      Boolean         @default(false)
+  note          String?
+  createdByName String?
+  createdAt     DateTime        @default(now())
+  deletedAt     DateTime?
+
+  @@index([tenantId])
+  @@index([accountId])
+  @@index([saleId])
+  @@index([invoiceId])
+  @@index([tenantId, paidOn])
+  @@index([tenantId, createdAt])
+}
+
+model ProductCategory {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  shortCode    String?
+  parentId     String?
+  categoryType String?
+  description  String?
+  slug         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([tenantId])
+  @@index([tenantId, parentId])
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  items       Item[]
+
+  @@index([tenantId])
+}
+
+model ProductUnit {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  shortName    String
+  allowDecimal Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([tenantId])
+}
+
+model Warranty {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  description  String?
+  duration     Int
+  durationType String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  @@index([tenantId])
+}
+
+model SellingPriceGroup {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([tenantId])
+}
+
+model Invoice {
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
+  reference      String
+  kind           InvoiceKind
+  status         String      @default("final")
+  paymentStatus  String?
+  currency       String      @default("NGN")
+  subtotal       Decimal?
+  taxAmount      Decimal?
+  discountAmount Decimal?
+  total          Decimal     @default(0)
+  documentDate   DateTime
+  dueDate        DateTime?
+  notes          String?
+  legacyId       Int?
+
+  customerId       String?
+  customer         Customer? @relation(fields: [customerId], references: [id])
+  supplierId       String?
+  supplier         Supplier? @relation(fields: [supplierId], references: [id])
+  employeeRecordId String?
+  employeeRecord   Employee? @relation(fields: [employeeRecordId], references: [id])
+  contactName      String?
+
+  layoutId String?
+  layout   InvoiceLayout? @relation(fields: [layoutId], references: [id])
+  schemeId String?
+  scheme   InvoiceScheme? @relation(fields: [schemeId], references: [id])
+
+  saleId          String?        @unique
+  sale            Sale?          @relation(fields: [saleId], references: [id])
+  stockMovementId String?        @unique
+  stockMovement   StockMovement? @relation(fields: [stockMovementId], references: [id])
+  expenseId       String?        @unique
+  expense         Expense?       @relation(fields: [expenseId], references: [id])
+  payrollId       String?        @unique
+  payroll         Payroll?       @relation(fields: [payrollId], references: [id])
+  payrollGroupId  String?        @unique
+  payrollGroup    PayrollGroup?  @relation(fields: [payrollGroupId], references: [id])
+  jobId           String?
+  job             Job?           @relation(fields: [jobId], references: [id])
+
+  payments            Payment[]
+  ledgerEntries       LedgerEntry[]
+  accountTransactions AccountTransaction[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([tenantId, reference, kind])
+  @@unique([tenantId, jobId, kind])
+  @@index([tenantId])
+  @@index([tenantId, kind, documentDate])
+  @@index([tenantId, paymentStatus])
+  @@index([customerId])
+  @@index([supplierId])
+  @@index([employeeRecordId])
+  @@index([jobId])
+}
+
+model InvoiceLayout {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  name       String
+  design     String    @default("classic")
+  headerText String?
+  footerText String?
+  termsText  String?
+  isDefault  Boolean   @default(false)
+  legacyId   Int?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  invoices Invoice[]
+
+  @@unique([tenantId, legacyId])
+  @@index([tenantId])
+}
+
+model InvoiceScheme {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  name         String
+  prefix       String?
+  startNumber  Int       @default(1)
+  invoiceCount Int       @default(0)
+  totalDigits  Int       @default(4)
+  isDefault    Boolean   @default(false)
+  legacyId     Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  invoices Invoice[]
+
+  @@unique([tenantId, legacyId])
+  @@index([tenantId])
+}
+
+model ReceiptPrinter {
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  name             String
+  printerType      String    @default("browser")
+  connectionString String?
+  isDefault        Boolean   @default(false)
+  legacyId         Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  @@unique([tenantId, legacyId])
+  @@index([tenantId])
+}
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  code      String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  expenses Expense[]
+
+  @@index([tenantId])
+}
+
+model Expense {
+  id                String           @id @default(cuid())
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  refNo             String?
+  categoryId        String?
+  category          ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  subCategory       String?
+  locationCode      String?
+  expenseForCustomerId String?
+  expenseForCustomer   Customer? @relation("ExpenseForCustomer", fields: [expenseForCustomerId], references: [id])
+  contactCustomerId String?
+  contactCustomer   Customer? @relation("ExpenseContactCustomer", fields: [contactCustomerId], references: [id])
+  /// Legacy free-text fields retained for migration display until fully backfilled.
+  expenseFor        String?
+  contactName       String?
+  totalAmount       Decimal          @default(0)
+  taxAmount         Decimal          @default(0)
+  paymentStatus     String           @default("due")
+  paymentDue        Decimal          @default(0)
+  note              String?
+  isRecurring       Boolean          @default(false)
+  recurInterval     Int?
+  recurIntervalType String?
+  expenseDate       DateTime         @default(now())
+  createdById       String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  invoice Invoice?
+
+  @@index([tenantId])
+  @@index([categoryId])
+  @@index([expenseForCustomerId])
+  @@index([contactCustomerId])
+}
+
+model CustomerGroup {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  name            String
+  discountPercent Decimal   @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  customers Customer[]
+
+  @@index([tenantId])
+}
+
+model PayrollGroup {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  payrolls  Payroll[]
+  employees Employee[]
+  invoice   Invoice?
+
+  @@index([tenantId])
+}
+
+model Designation {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  employees Employee[]
+  payrolls  Payroll[]
+
+  @@index([tenantId])
+}
+
+model Employee {
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id])
+  name            String
+  employeeCode    String?
+  locationCode    String?
+  payrollGroupId  String?
+  payrollGroup    PayrollGroup? @relation(fields: [payrollGroupId], references: [id])
+  designationId   String
+  designation     Designation   @relation(fields: [designationId], references: [id])
+  userId          String?
+  user            User?         @relation("EmployeeUser", fields: [userId], references: [id])
+  isServiceStaff  Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  payrolls Payroll[]
+  invoices Invoice[]
+  salesAsServiceStaff Sale[] @relation("SaleServiceStaff")
+
+  @@index([tenantId])
+  @@index([tenantId, isServiceStaff])
+  @@index([designationId])
+  @@index([payrollGroupId])
+  @@index([userId])
+}
+
+model PayComponent {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  type      String    @default("allowance")
+  amount    Decimal   @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([tenantId])
+}
+
+model Payroll {
+  id             String        @id @default(cuid())
+  tenantId       String
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
+  payrollGroupId String?
+  payrollGroup   PayrollGroup? @relation(fields: [payrollGroupId], references: [id])
+  employeeRecordId String?
+  employeeRecord   Employee?   @relation(fields: [employeeRecordId], references: [id])
+  designationId  String?
+  designation    Designation?  @relation(fields: [designationId], references: [id])
+  employeeName   String
+  employeeId     String?
+  locationCode   String?
+  grossPay       Decimal       @default(0)
+  totalAllowance Decimal       @default(0)
+  totalDeduction Decimal       @default(0)
+  netPay         Decimal       @default(0)
+  status         String        @default("draft")
+  paymentStatus  String        @default("due")
+  payrollMonth   DateTime
+  note           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?
+
+  invoice Invoice?
+
+  @@index([tenantId])
+  @@index([payrollGroupId])
+  @@index([employeeRecordId])
+  @@index([designationId])
+  @@index([tenantId, payrollMonth])
+}
