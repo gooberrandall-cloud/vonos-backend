@@ -1,5 +1,4 @@
 # vonos-backend
-
 NestJS API + Prisma for the Vonos multi-tenant platform.
 
 ## Vercel
