@@ -1,0 +1,9 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "npm run build --workspace=@vonos/types && npm run build --workspace=api"
+
+[deploy]
+startCommand = "npm run start:railway --workspace=api"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"

@@ -1,0 +1,11 @@
+-- Sale money fields
+ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL;
+ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "taxAmount" DECIMAL;
+ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "notes" TEXT;
+
+-- Item selling price (retail POS)
+ALTER TABLE "Item" ADD COLUMN IF NOT EXISTS "sellPrice" DECIMAL;
+
+-- Job QC persistence (VA)
+ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "qcChecklist" JSONB;
+ALTER TABLE "Job" ADD COLUMN IF NOT EXISTS "qcNotes" TEXT;
