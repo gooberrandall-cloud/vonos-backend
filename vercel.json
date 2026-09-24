@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build --workspace=@vonos/types && npm run build --workspace=api",
+  "rewrites": [{ "source": "/(.*)", "destination": "/apps/api/api" }],
+  "functions": {
+    "apps/api/api/index.ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
+}
