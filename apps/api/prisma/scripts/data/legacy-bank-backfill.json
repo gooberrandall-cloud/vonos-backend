@@ -1,0 +1,25 @@
+[
+  {
+    "name": "Mr Abdulhafeez Abdulwahab",
+    "tenant": "VA",
+    "matchEmail": "oabdulafeez@vonosautos.com",
+    "accountHolderName": "Abdulafees Abdulwahab",
+    "bankAccountNo": "9096602653",
+    "bankName": "Opay Digital Services"
+  },
+  {
+    "name": "Miss Lois Akoso",
+    "tenant": "VP",
+    "matchEmail": "alois@vonosautos.com",
+    "accountHolderName": "Akoso Lois Doowuese",
+    "bankAccountNo": "9037140162",
+    "bankName": "Opay"
+  },
+  {
+    "name": "OMEIZA ABDULRASHEED",
+    "matchEmail": "vonosauto@gmail.com",
+    "accountHolderName": "ABDULRASHEED OMEIZA MOMOHJIMOH",
+    "bankAccountNo": "9134662221",
+    "bankName": "Opay"
+  }
+]
