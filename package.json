@@ -1,0 +1,22 @@
+{
+  "name": "vonos-backend",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "packages/types"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.18",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.13.0"
+}

@@ -1,0 +1,17 @@
+-- HQ6 / Ultimate POS manage_user profile fields on Employee.
+
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "mobile" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "altContact" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "familyContact" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "guardianName" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "dateOfBirth" DATE;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "gender" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "maritalStatus" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "bloodGroup" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "idProofName" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "idProofNumber" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "permanentAddress" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "currentAddress" TEXT;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "salesCommission" DECIMAL(65,30) DEFAULT 0;
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "maxSalesDiscountPercent" DECIMAL(65,30);
+ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "department" TEXT;
